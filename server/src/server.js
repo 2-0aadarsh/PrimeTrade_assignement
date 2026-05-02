@@ -17,6 +17,8 @@ import { logger } from "./utils/logger.util.js";
 
 dotenv.config();
 
+const isVercel = process.env.VERCEL === "1";
+
 /** Browser dev servers (Vite, CRA, etc.) — any port */
 const LOCAL_BROWSER_ORIGIN =
   /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
@@ -69,6 +71,19 @@ app.use(
   })
 );
 
+/** Serverless (Vercel): no app.listen — connect Mongo per cold start; connection is cached */
+if (isVercel) {
+  app.use(async (req, res, next) => {
+    try {
+      await connectDB();
+      next();
+    } catch (error) {
+      logger.error("MongoDB connection failed", { error: error.message });
+      next(error);
+    }
+  });
+}
+
 app.get("/", (req, res) => {
   return res.status(200).json({
     success: true,
@@ -80,7 +95,9 @@ app.use("/api/v1", apiRouter);
 app.use(notFoundHandler);
 app.use(errorHandler);
 
-const startServer = async () => {
+export default app;
+
+async function startLocalServer() {
   await connectDB();
 
   try {
@@ -106,9 +123,11 @@ const startServer = async () => {
 
   process.on("SIGINT", () => shutdown("SIGINT"));
   process.on("SIGTERM", () => shutdown("SIGTERM"));
-};
+}
 
-startServer().catch((error) => {
-  logger.error("Failed to start server", { error: error.message });
-  process.exit(1);
-});
+if (!isVercel) {
+  startLocalServer().catch((error) => {
+    logger.error("Failed to start server", { error: error.message });
+    process.exit(1);
+  });
+}

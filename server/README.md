@@ -103,6 +103,25 @@ Scalable REST API built with Express.js, MongoDB, Redis, JWT auth, RBAC, OTP ema
    - `GET http://localhost:5000/api/v1/health`
    - open `http://localhost:5000/api-docs`
 
+## Deploying on Vercel
+
+Vercel runs **serverless functions**, not a long-lived `app.listen()` process. This project supports that shape:
+
+- **`src/server.js`** exports the Express **`app`**. On **`VERCEL=1`**, it **does not** call `listen`; MongoDB is connected via middleware using a **cached** Mongoose connection.
+- **`api/index.js`** re-exports the app for Vercel’s **`/api`** serverless entry.
+- **`vercel.json`** rewrites all routes to **`/api`** so `/`, `/api/v1/...`, and `/api-docs` are handled by the same Express app.
+
+**Project settings**
+
+1. Set **Root Directory** to **`server`** (this folder).
+2. Configure **environment variables** from `.env.example` (`MONGO_URI`, JWT secrets, **`CORS_ORIGINS`** = your Netlify/Vercel frontend URL, Redis if used, etc.).
+3. After deploy, base URL is like `https://<project>.vercel.app` → APIs live at `https://<project>.vercel.app/api/v1/...` and Swagger at `https://<project>.vercel.app/api-docs`.
+
+**Notes**
+
+- **Soft-delete cleanup job** (`setInterval`) runs only in **local/long-running** mode. On Vercel, schedule cleanup separately (e.g. **Vercel Cron** calling a secured endpoint) if you need automated purge in production.
+- Use a **managed MongoDB** (Atlas) and **managed Redis** for production; localhost URLs will not work from Vercel’s cloud.
+
 ## Notes for Evaluation
 
 - API follows modular, scalable folder structure.
